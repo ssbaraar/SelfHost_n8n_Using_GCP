@@ -216,13 +216,22 @@ sudo systemctl restart caddy
 ```
 
 ### Alternate Flow: Using Nginx
+
 1. **Install Nginx:**
 ```bash
 sudo apt update
 sudo apt install nginx
 ```
 
-2. **Configure Nginx:**
+2. **Obtain SSL Certificates with Certbot:**
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo systemctl stop nginx  # Temporarily stop Nginx for certificate setup
+sudo certbot certonly --standalone -d <YOUR_DOMAIN> --preferred-challenges http --agree-tos -m <YOUR_EMAIL> --non-interactive
+sudo systemctl start nginx  # Restart Nginx after certificate acquisition
+```
+
+3. **Configure Nginx:**
 ```bash
 sudo nano /etc/nginx/sites-available/n8n.conf
 ```
@@ -253,7 +262,7 @@ server {
 }
 ```
 
-3. **Test and Reload Nginx:**
+4. **Test and Reload Nginx:**
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
@@ -261,25 +270,73 @@ sudo systemctl reload nginx
 
 ## Troubleshooting & Potential Errors
 
-- **psql Client Not Found**:
-  ```bash
-  sudo apt install postgresql-client
-  ```
+### 1. psql Client Not Found
+**Scenario:** Running `psql` returns "Command 'psql' not found"  
+**Solution:** Install PostgreSQL client tools  
+**Fix:**
+```bash
+sudo apt update
+sudo apt install postgresql-client
+```
 
-- **Service Unit Not Found (PostgreSQL)**:
-  - Manage restarts via GCP Console instead of systemctl
+### 2. Service Unit Not Found (PostgreSQL)
+**Scenario:** Error when trying to restart PostgreSQL via systemctl  
+**Solution:** Manage Cloud SQL instances through GCP Console  
+**Steps:**
+1. Navigate to **Cloud SQL** in GCP Console
+2. Select your instance
+3. Click **Restart** button
 
-- **Docker Permissions**:
-  ```bash
-  sudo usermod -aG docker $USER
-  sudo reboot
-  ```
+### 3. Docker Permissions Issues
+**Scenario:** "Permission denied" errors when running docker commands  
+**Solution:** Add user to docker group and refresh permissions  
+**Fix:**
+```bash
+sudo usermod -aG docker $USER
+newgrp docker  # Refresh group membership without reboot
+# If still issues:
+sudo reboot
+```
 
-- **DNS Propagation Delays**:
-  - Use tools like DNS Checker to verify propagation
+### 4. DNS Propagation Delays
+**Scenario:** Domain not resolving to server IP  
+**Verification:**
+```bash
+dig +short <YOUR_DOMAIN>
+nslookup <YOUR_DOMAIN>
+```
+**Tools:** Use [DNS Checker](https://dnschecker.org) to monitor global propagation
 
-- **SSL Certificate Errors**:
-  - Verify certificate paths and DNS records
+### 5. SSL Certificate Errors
+**Scenario:** SSL/TLS connection failures or certificate warnings  
+**Diagnosis:**
+```bash
+# Verify certificate files exist
+sudo ls -l /etc/letsencrypt/live/<YOUR_DOMAIN>/
+
+# Check certificate expiration
+sudo certbot certificates
+
+# Test SSL configuration
+sudo nginx -T | grep ssl_certificate
+```
+
+**Renewal Setup:**
+```bash
+# Create renewal cron job
+(crontab -l 2>/dev/null; echo "0 12 * * * /usr/bin/certbot renew --quiet") | crontab -
+```
+
+### 6. Nginx Configuration Errors
+**Scenario:** Failed reload after configuration changes  
+**Test Configuration:**
+```bash
+sudo nginx -t
+```
+**Common Fixes:**
+- Check for missing semicolons in config files
+- Verify DNS resolution in server_name directives
+- Confirm port 443 is open in firewall
 
 ## Additional Techniques
 
